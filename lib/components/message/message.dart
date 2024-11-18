@@ -7,12 +7,12 @@ class MessagePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF00364D),
-        title: Row(
+        title: const Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            const Icon(Icons.chat_bubble_outline, color: Colors.white),
-            const SizedBox(width: 10),
-            const Text(
+            Icon(Icons.chat_bubble_outline, color: Colors.white),
+            SizedBox(width: 10),
+            Text(
               'Messages',
               style: TextStyle(
                 fontSize: 22,
@@ -85,7 +85,7 @@ class MessagePage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Add New',
                 style: TextStyle(
                   fontSize: 20,

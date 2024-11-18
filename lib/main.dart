@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:socialhub/components/home/home.dart';
-import 'package:socialhub/components/login/login.dart';
+import 'package:socialhub/components/landing/landing.dart';
+import 'package:socialhub/components/landing/login/login.dart';
+import 'package:socialhub/components/landing/register/register.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    runApp(const MyApp());
+    await Firebase.initializeApp();
+  } catch (e) {
+    print("Error initializing Firebase: $e");
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -13,12 +22,15 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Social HUB',
-      initialRoute: '/', // Start at the login page
+      initialRoute: '/splash',
       routes: {
-        '/': (context) => const Login(), // Define the login page route
-        '/home': (context) => const HomePage(), // Define the '/home' route
+        '/splash': (context) => const SplashScreen(),
+        '/': (context) => const Landing(),
+        '/login': (context) => const Login(),
+        '/signup': (context) => const Register(),
+        // Modify the /home route to pass arguments
+        '/home': (context) => const HomePage(),
       },
-      // Optionally, you can set onGenerateRoute if you want more control over route generation
     );
   }
 }
@@ -35,11 +47,8 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(seconds: 8), () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Login()),
-        );
+      Future.delayed(const Duration(seconds: 3), () {
+        Navigator.pushReplacementNamed(context, '/');
       });
     });
   }
@@ -74,7 +83,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // You can add a loading indicator for a better user experience
             const CircularProgressIndicator(),
           ],
         ),

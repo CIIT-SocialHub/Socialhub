@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:socialhub/components/home/home.dart';
 import 'package:socialhub/components/message/message.dart';
-import 'package:socialhub/assets/widgets/postbar.dart';
 
 class SocialMediaBottomNavBar extends StatelessWidget {
   @override

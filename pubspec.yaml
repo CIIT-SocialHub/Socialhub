@@ -32,6 +32,9 @@ dependencies:
     sdk: flutter
   image_picker: ^0.8.5+3
   mysql1: ^0.20.0
+  firebase_core: ^2.0.0 # Consider updating to the latest major version
+  firebase_auth: ^4.0.0 # Ensure compatibility with firebase_core
+  shared_preferences: ^2.0.16
 
 
   # The following adds the Cupertino Icons font to your application.
