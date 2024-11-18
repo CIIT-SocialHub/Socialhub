@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -14,6 +15,12 @@ class _LoginState extends State<Login> {
   late String _username;
   late String _password;
   String? _errorMessage;
+
+  Future<void> _saveUserToPreferences(int userId, String username) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('userId', userId); // Ensure userId is an integer
+    await prefs.setString('username', username); // Save username
+  }
 
   Future<void> _login() async {
     try {
@@ -42,26 +49,15 @@ class _LoginState extends State<Login> {
       if (results.isNotEmpty) {
         // Fetch user details
         final row = results.first;
-        final userId = row['user_id'];
-        final username = row['username'];
-        final email = row['email'];
-        final profilePic = row['profile_pic'];
-        final bio = row['bio'];
-        final createdAt = row['created_at'];
+        final userId = row['user_id'] as int;
 
-        // Navigate to the home screen and pass user info
-        Navigator.pushReplacementNamed(
-          context,
-          '/home',
-          arguments: {
-            'user_id': userId,
-            'username': username,
-            'email': email,
-            'profile_pic': profilePic,
-            'bio': bio,
-            'created_at': createdAt,
-          },
-        );
+        final username = row['username'] as String;
+
+        // Save user details to SharedPreferences
+        await _saveUserToPreferences(userId, username);
+
+        // Navigate to the home screen
+        Navigator.pushReplacementNamed(context, '/home');
       } else {
         // Handle login failure
         setState(() {

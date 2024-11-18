@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socialhub/components/home/home.dart';
 import 'package:socialhub/components/landing/landing.dart';
 import 'package:socialhub/components/landing/login/login.dart';
@@ -18,6 +19,13 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  Future<Map<String, dynamic>> getUserDetailsFromPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('userId') ?? -1;
+    final username = prefs.getString('username') ?? '';
+    return {'userId': userId, 'username': username};
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -28,8 +36,22 @@ class MyApp extends StatelessWidget {
         '/': (context) => const Landing(),
         '/login': (context) => const Login(),
         '/signup': (context) => const Register(),
-        // Modify the /home route to pass arguments
-        '/home': (context) => const HomePage(),
+        '/home': (context) => FutureBuilder<Map<String, dynamic>>(
+              future: getUserDetailsFromPreferences(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError || !snapshot.hasData) {
+                  return const Center(
+                      child: Text('Error loading user details'));
+                }
+                final userDetails = snapshot.data!;
+                return HomePage(
+                  userId: userDetails['userId'],
+                  username: userDetails['username'],
+                );
+              },
+            ),
       },
     );
   }

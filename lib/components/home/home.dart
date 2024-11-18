@@ -14,7 +14,11 @@ String blobToString(dynamic blobData) {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int userId;
+  final String username;
+
+  const HomePage({Key? key, required this.userId, required this.username})
+      : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -103,12 +107,15 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('News Feed')),
+      appBar: AppBar(
+        title: Text('Welcome, ${widget.username}!'),
+      ),
       body: Column(
         children: [
           // PostBar Widget for creating a post
           PostBar(
-            refreshFeed: () => _loadPosts(),
+            refreshFeed: _loadPosts,
+            userId: widget.userId,
           ),
 
           // Display the posts
@@ -155,12 +162,6 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                         const Divider(),
-                        // Displaying comments (if any)
-                        // for (var comment in post['comments'])
-                        //   Padding(
-                        //     padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        //     child: Text('- $comment'),
-                        //   ),
                       ],
                     ),
                   ),

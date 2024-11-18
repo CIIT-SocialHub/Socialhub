@@ -3,8 +3,9 @@ import 'package:mysql1/mysql1.dart';
 
 class PostBar extends StatefulWidget {
   final VoidCallback refreshFeed; // Callback to refresh the feed
+  final int userId; // Pass the user ID dynamically from login
 
-  PostBar({required this.refreshFeed});
+  PostBar({required this.refreshFeed, required this.userId});
 
   @override
   _PostBarState createState() => _PostBarState();
@@ -33,7 +34,7 @@ class _PostBarState extends State<PostBar> {
       await conn.query(
         'INSERT INTO posts (user_id, content, timestamp, visibility, like_count, comment_count) VALUES (?, ?, NOW(), ?, ?, ?)',
         [
-          3, //this should be dynamic based on logged-in user
+          widget.userId, // Use the passed user ID
           _postController.text,
           'public', // Example visibility setting
           0, // Initial like count

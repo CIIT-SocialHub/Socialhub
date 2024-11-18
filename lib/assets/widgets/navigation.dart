@@ -30,10 +30,7 @@ class SocialMediaBottomNavBar extends StatelessWidget {
               color: Color(0xFF00364D),
             ),
             onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HomePage()),
-              );
+              Navigator.pushReplacementNamed(context, '/home');
             },
           ),
           const SizedBox(width: 28),
