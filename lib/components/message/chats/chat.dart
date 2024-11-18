@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
+import 'dart:convert'; // To decode binary data if necessary
 
 class ChatPage extends StatefulWidget {
-  final int userId;
-  final String username;
+  final int currentUserId;
+  final int chatUserId;
+  final String chatUserName;
 
-  const ChatPage({Key? key, required this.userId, required this.username})
-      : super(key: key);
+  const ChatPage({
+    Key? key,
+    required this.currentUserId,
+    required this.chatUserId,
+    required this.chatUserName,
+  }) : super(key: key);
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -18,7 +24,7 @@ class _ChatPageState extends State<ChatPage> {
 
   // MySQL connection settings
   final connSettings = ConnectionSettings(
-    host: '10.0.2.2',
+    host: '10.0.2.2', // Adjust this for real device or emulator
     port: 3306,
     db: 'socialhub',
     user: 'flutter',
@@ -28,31 +34,58 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    print(
+        'Initializing chat for ${widget.chatUserName}'); // Debug: Log when chat page initializes
     _loadMessages();
   }
 
-  // Fetch messages from the database
   Future<void> _loadMessages() async {
     try {
       final conn = await MySqlConnection.connect(connSettings);
 
       var results = await conn.query(
-        'SELECT sender_id, message, timestamp '
-        'FROM messages '
-        'WHERE sender_id = ? OR recipient_id = ? '
-        'ORDER BY timestamp ASC',
-        [widget.userId, widget.userId],
+        '''
+      SELECT sender_id, message_text, timestamp 
+      FROM messages 
+      WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?) 
+      ORDER BY timestamp ASC''',
+        [
+          widget.currentUserId,
+          widget.chatUserId,
+          widget.chatUserId,
+          widget.currentUserId,
+        ],
       );
+
+      print('Raw results: $results'); // Debug: Log raw results
 
       setState(() {
         _messages = results.map((row) {
+          var message = row[1];
+
+          // Debug: Check type of message
+          print('Message type before processing: ${message.runtimeType}');
+
+          // Decode Blob or List<int> to a string
+          if (message is Blob) {
+            message = utf8.decode(message.toBytes());
+            print('Decoded Blob message: $message'); // Debug
+          } else if (message is List<int>) {
+            message = utf8.decode(message);
+            print('Decoded List<int> message: $message'); // Debug
+          } else {
+            print('Unexpected message type: $message'); // Debug
+          }
+
           return {
             'sender_id': row[0],
-            'message': row[1],
+            'message_text': message,
             'timestamp': row[2].toString().substring(0, 16),
           };
         }).toList();
       });
+
+      print('Processed messages: $_messages'); // Debug
 
       await conn.close();
     } catch (e) {
@@ -63,20 +96,26 @@ class _ChatPageState extends State<ChatPage> {
   // Send a new message
   Future<void> _sendMessage(String message) async {
     try {
+      print('Sending message: $message'); // Debug: Log the message being sent
       final conn = await MySqlConnection.connect(connSettings);
 
       await conn.query(
-        'INSERT INTO messages (sender_id, recipient_id, message, timestamp) '
+        'INSERT INTO messages (sender_id, receiver_id, message_text, timestamp) '
         'VALUES (?, ?, ?, NOW())',
-        [widget.userId, widget.userId, message],
+        [widget.currentUserId, widget.chatUserId, message],
       );
 
       _messageController.clear();
+      print(
+          'Message sent. Reloading messages...'); // Debug: Log after sending message
       _loadMessages();
 
       await conn.close();
+      print(
+          'Connection closed after sending message'); // Debug: Log after closing connection
     } catch (e) {
-      print('Error sending message: $e');
+      print(
+          'Error sending message: $e'); // Debug: Log any error during sending message
     }
   }
 
@@ -84,7 +123,7 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.username),
+        title: Text(widget.chatUserName),
       ),
       body: Column(
         children: [
@@ -93,7 +132,9 @@ class _ChatPageState extends State<ChatPage> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
-                final isMe = message['sender_id'] == widget.userId;
+                final isMe = message['sender_id'] == widget.currentUserId;
+                print(
+                    'Displaying message from user ${message['sender_id']}'); // Debug: Log which user’s message is being displayed
                 return Align(
                   alignment:
                       isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -104,7 +145,7 @@ class _ChatPageState extends State<ChatPage> {
                       color: isMe ? Colors.blue : Colors.grey[300],
                       borderRadius: BorderRadius.circular(12.0),
                     ),
-                    child: Text(message['message']),
+                    child: Text(message['message_text']),
                   ),
                 );
               },
@@ -127,7 +168,12 @@ class _ChatPageState extends State<ChatPage> {
                   icon: const Icon(Icons.send),
                   onPressed: () {
                     if (_messageController.text.trim().isNotEmpty) {
+                      print(
+                          'Message text is not empty. Sending message...'); // Debug: Log when message is being sent
                       _sendMessage(_messageController.text.trim());
+                    } else {
+                      print(
+                          'Message text is empty, not sending'); // Debug: Log if the message is empty
                     }
                   },
                 ),

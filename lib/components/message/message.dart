@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
+import 'package:socialhub/components/message/chats/chat.dart';
 import 'dart:convert';
 
 import '../../assets/widgets/navigation.dart'; // For utf8.decode
@@ -124,15 +125,19 @@ class _MessagePageState extends State<MessagePage> {
                         message['last_message_time'],
                         style: const TextStyle(fontSize: 12),
                       ),
+                      // Inside your ListView or where you display the messages
                       onTap: () {
                         // Navigate to chat screen
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ChatScreen(
-                              currentUserId: widget.currentUserId,
-                              chatUserId: message['user_id'],
-                              chatUserName: message['username'],
+                            builder: (context) => ChatPage(
+                              currentUserId: widget
+                                  .currentUserId, // Assuming this is the current user ID
+                              chatUserId: message[
+                                  'user_id'], // The user ID of the person you're chatting with
+                              chatUserName: message[
+                                  'username'], // The username of the chat partner
                             ),
                           ),
                         );
