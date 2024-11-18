@@ -1,178 +1,172 @@
 import 'package:flutter/material.dart';
-import 'package:socialhub/assets/widgets/navigation.dart';
+import 'package:mysql1/mysql1.dart';
+import 'dart:convert';
 
-class MessagePage extends StatelessWidget {
+import '../../assets/widgets/navigation.dart'; // For utf8.decode
+
+class MessagePage extends StatefulWidget {
+  final int currentUserId;
+
+  const MessagePage({Key? key, required this.currentUserId}) : super(key: key);
+
+  @override
+  _MessagePageState createState() => _MessagePageState();
+}
+
+class _MessagePageState extends State<MessagePage> {
+  List<Map<String, dynamic>> messages = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMessages();
+  }
+
+  Future<void> _fetchMessages() async {
+    try {
+      // Connect to the database
+      final conn = await MySqlConnection.connect(ConnectionSettings(
+        host: '10.0.2.2', // Android emulator, or device IP
+        port: 3306,
+        db: 'socialhub',
+        user: 'flutter',
+        password: 'flutter',
+      ));
+
+      // Execute the query
+      final results = await conn.query('''
+        SELECT 
+          CASE 
+            WHEN sender_id = ? THEN receiver_id
+            ELSE sender_id
+          END AS user_id,
+          (SELECT username FROM users WHERE user_id = 
+            CASE 
+              WHEN sender_id = ? THEN receiver_id
+              ELSE sender_id
+            END) AS username,
+          MAX(message_text) AS last_message,
+          MAX(timestamp) AS last_message_time
+        FROM messages
+        WHERE sender_id = ? OR receiver_id = ?
+        GROUP BY user_id
+        ORDER BY last_message_time DESC;
+    ''', [
+        widget.currentUserId,
+        widget.currentUserId,
+        widget.currentUserId,
+        widget.currentUserId,
+      ]);
+
+      // Process results
+      List<Map<String, dynamic>> loadedMessages = [];
+      for (var row in results) {
+        // Check if the message is a Blob (binary data)
+        var lastMessage = row['last_message'];
+
+        // If it's a Blob, convert it to a List<int> and decode
+        String messageText = '';
+        if (lastMessage is List<int>) {
+          messageText = utf8.decode(lastMessage);
+        } else {
+          messageText = lastMessage.toString();
+        }
+
+        loadedMessages.add({
+          'user_id': row['user_id'],
+          'username': row['username'] ?? 'Unknown User',
+          'last_message': messageText,
+          'last_message_time': row['last_message_time']?.toString() ?? '',
+        });
+      }
+
+      // Close the connection
+      await conn.close();
+
+      // Update state
+      setState(() {
+        messages = loadedMessages;
+        isLoading = false;
+      });
+    } catch (e) {
+      // Handle errors
+      print('Error fetching messages: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF00364D),
-        title: const Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Icon(Icons.chat_bubble_outline, color: Colors.white),
-            SizedBox(width: 10),
-            Text(
-              'Messages',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
+        title: const Text('Messages'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          _buildMessageTile(
-            context,
-            avatarColor: const Color(0xFF4EC8F4),
-            senderName: "John Doe",
-            messagePreview: "Hey, are you ready for the quiz tomorrow?",
-            timestamp: "10:30 AM",
-          ),
-          _buildMessageTile(
-            context,
-            avatarColor: const Color(0xFF00364D),
-            senderName: "Anna Smith",
-            messagePreview: "Can you send me the lecture notes?",
-            timestamp: "9:15 AM",
-          ),
-          _buildMessageTile(
-            context,
-            avatarColor: const Color(0xFF4EC8F4),
-            senderName: "Study Group",
-            messagePreview: "Group project meeting at 4 PM. Don’t be late!",
-            timestamp: "Yesterday",
-          ),
-          _buildMessageTile(
-            context,
-            avatarColor: const Color(0xFF00364D),
-            senderName: "Dr. Williams",
-            messagePreview: "Reminder: Submit your assignments by Friday.",
-            timestamp: "2 days ago",
-          ),
-          _buildMessageTile(
-            context,
-            avatarColor: const Color(0xFF4EC8F4),
-            senderName: "CIIT Events",
-            messagePreview: "Join us for the upcoming Hackathon!",
-            timestamp: "3 days ago",
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showAddOptions(context);
-        },
-        backgroundColor: const Color(0xFF4EC8F4),
-        child: const Icon(Icons.add),
-      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : messages.isEmpty
+              ? const Center(child: Text('No messages to display.'))
+              : ListView.builder(
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        child: Text(
+                          message['username']?[0].toUpperCase() ?? 'U',
+                        ),
+                      ),
+                      title: Text(message['username']),
+                      subtitle: Text(message['last_message']),
+                      trailing: Text(
+                        message['last_message_time'],
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      onTap: () {
+                        // Navigate to chat screen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              currentUserId: widget.currentUserId,
+                              chatUserId: message['user_id'],
+                              chatUserName: message['username'],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
       bottomNavigationBar: SocialMediaBottomNavBar(),
     );
   }
+}
 
-  // Method to show the overlay with add options
-  void _showAddOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.all(16.0),
-          height: 250,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              const Text(
-                'Add New',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF00364D),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.message),
-                title: const Text('Add Message'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Navigate to the Add Message page or open a dialog
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.group),
-                title: const Text('Add Group'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Navigate to the Add Group page or open a dialog
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.people),
-                title: const Text('Add Community'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Navigate to the Add Community page or open a dialog
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+class ChatScreen extends StatelessWidget {
+  final int currentUserId;
+  final int chatUserId;
+  final String chatUserName;
 
-  // Message tile widget to display each message entry
-  Widget _buildMessageTile(
-    BuildContext context, {
-    required Color avatarColor,
-    required String senderName,
-    required String messagePreview,
-    required String timestamp,
-  }) {
-    return Card(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: avatarColor,
-          child: Text(
-            senderName[0], // Display the first letter of the sender’s name
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
-        title: Text(
-          senderName,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF00364D),
-          ),
-        ),
-        subtitle: Text(
-          messagePreview,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey.shade600,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Text(
-          timestamp,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade500,
-          ),
-        ),
-        onTap: () {
-          // Define action on tapping a message tile if needed
-        },
+  const ChatScreen({
+    Key? key,
+    required this.currentUserId,
+    required this.chatUserId,
+    required this.chatUserName,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Chat with $chatUserName'),
       ),
+      body: const Center(
+        child: Text('Chat functionality coming soon!'),
+      ),
+      bottomNavigationBar: SocialMediaBottomNavBar(),
     );
   }
 }

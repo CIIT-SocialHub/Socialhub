@@ -47,9 +47,14 @@ class _HomePageState extends State<HomePage> {
     try {
       final conn = await MySqlConnection.connect(connSettings);
 
-      // Query to fetch posts
-      var results = await conn.query(
-          'SELECT post_id, user_id, content, timestamp, visibility, like_count, comment_count FROM posts ORDER BY timestamp DESC');
+      // Updated query to include the username
+      var results = await conn.query('''
+  SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp, 
+         posts.visibility, posts.like_count, posts.comment_count, users.username 
+  FROM posts 
+  JOIN users ON posts.user_id = users.user_id 
+  ORDER BY posts.timestamp DESC
+''');
 
       // Map results to a list of posts
       setState(() {
@@ -62,6 +67,7 @@ class _HomePageState extends State<HomePage> {
             'visibility': row[4],
             'like_count': row[5],
             'comment_count': row[6],
+            'username': row[7],
           };
         }).toList();
       });
@@ -135,7 +141,7 @@ class _HomePageState extends State<HomePage> {
                         Text(
                           post['visibility'] == 'anonymous'
                               ? 'Anonymous'
-                              : 'User ${post['user_id']}',
+                              : post['username'],
                           style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 16),
                         ),

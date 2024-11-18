@@ -5,6 +5,8 @@ import 'package:socialhub/components/home/home.dart';
 import 'package:socialhub/components/landing/landing.dart';
 import 'package:socialhub/components/landing/login/login.dart';
 import 'package:socialhub/components/landing/register/register.dart';
+import 'package:socialhub/components/message/chats/chat.dart';
+import 'package:socialhub/components/message/message.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,22 +38,73 @@ class MyApp extends StatelessWidget {
         '/': (context) => const Landing(),
         '/login': (context) => const Login(),
         '/signup': (context) => const Register(),
-        '/home': (context) => FutureBuilder<Map<String, dynamic>>(
-              future: getUserDetailsFromPreferences(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError || !snapshot.hasData) {
-                  return const Center(
-                      child: Text('Error loading user details'));
-                }
-                final userDetails = snapshot.data!;
-                return HomePage(
-                  userId: userDetails['userId'],
-                  username: userDetails['username'],
-                );
-              },
-            ),
+      },
+      onGenerateRoute: (settings) {
+        // Handle routes requiring user details dynamically
+        switch (settings.name) {
+          case '/messages':
+            return MaterialPageRoute(
+              builder: (context) => FutureBuilder<Map<String, dynamic>>(
+                future: getUserDetailsFromPreferences(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  } else if (snapshot.hasError || !snapshot.hasData) {
+                    return const Scaffold(
+                      body: Center(child: Text('Error loading user details')),
+                    );
+                  }
+                  final userDetails = snapshot.data!;
+                  return MessagePage(currentUserId: userDetails['userId']);
+                },
+              ),
+            );
+          case '/messages':
+            return MaterialPageRoute(
+              builder: (context) => FutureBuilder<Map<String, dynamic>>(
+                future: getUserDetailsFromPreferences(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  } else if (snapshot.hasError || !snapshot.hasData) {
+                    return const Scaffold(
+                      body: Center(child: Text('Error loading user details')),
+                    );
+                  }
+                  final userDetails = snapshot.data!;
+                  return MessagePage(currentUserId: userDetails['userId']);
+                },
+              ),
+            );
+          case '/home':
+            return MaterialPageRoute(
+              builder: (context) => FutureBuilder<Map<String, dynamic>>(
+                future: getUserDetailsFromPreferences(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  } else if (snapshot.hasError || !snapshot.hasData) {
+                    return const Scaffold(
+                      body: Center(child: Text('Error loading user details')),
+                    );
+                  }
+                  final userDetails = snapshot.data!;
+                  return HomePage(
+                    userId: userDetails['userId'],
+                    username: userDetails['username'],
+                  );
+                },
+              ),
+            );
+          default:
+            return null; // Return null for undefined routes
+        }
       },
     );
   }

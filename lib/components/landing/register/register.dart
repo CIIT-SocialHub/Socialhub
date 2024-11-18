@@ -17,6 +17,14 @@ class _RegisterState extends State<Register> {
   String? _errorMessage;
 
   Future<void> _register() async {
+    // Validate email domain
+    if (!_email.endsWith('@ciit.edu.ph')) {
+      setState(() {
+        _errorMessage = 'Please use a CIIT email (@ciit.edu.ph).';
+      });
+      return;
+    }
+
     try {
       final conn = await MySqlConnection.connect(ConnectionSettings(
         host: '10.0.2.2',
@@ -44,7 +52,7 @@ class _RegisterState extends State<Register> {
       await conn.close();
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to connect to the database';
+        _errorMessage = 'Failed to connect to the database.';
       });
       print("Error: $e");
     }
@@ -61,7 +69,7 @@ class _RegisterState extends State<Register> {
             if (_errorMessage != null) ...[
               Text(
                 _errorMessage!,
-                style: TextStyle(color: Colors.red),
+                style: const TextStyle(color: Colors.red),
               ),
               const SizedBox(height: 10),
             ],
@@ -81,13 +89,13 @@ class _RegisterState extends State<Register> {
             const SizedBox(height: 20),
             ElevatedButton(
               style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.all<Color>(
+                backgroundColor: MaterialStateProperty.all<Color>(
                   const Color(0xFF00364D),
                 ),
-                foregroundColor: WidgetStateProperty.all<Color>(
+                foregroundColor: MaterialStateProperty.all<Color>(
                   Colors.white,
                 ),
-                shape: WidgetStateProperty.all<RoundedRectangleBorder>(
+                shape: MaterialStateProperty.all<RoundedRectangleBorder>(
                   RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8.0),
                   ),
@@ -97,7 +105,7 @@ class _RegisterState extends State<Register> {
               child: const Text('Register'),
             ),
             const SizedBox(height: 20),
-            Text('Already have an account? Login here.'),
+            const Text('Already have an account? Login here.'),
             ElevatedButton(
               onPressed: () {
                 Navigator.pushReplacementNamed(context, '/login');
