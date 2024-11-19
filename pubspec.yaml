@@ -35,6 +35,7 @@ dependencies:
   firebase_core: ^2.0.0 # Consider updating to the latest major version
   firebase_auth: ^4.0.0 # Ensure compatibility with firebase_core
   shared_preferences: ^2.0.16
+  emoji_picker_flutter: ^1.0.0
 
 
 

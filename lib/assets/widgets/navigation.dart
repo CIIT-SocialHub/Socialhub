@@ -36,7 +36,9 @@ class SocialMediaBottomNavBar extends StatelessWidget {
               Icons.groups_2_outlined,
               color: Color(0xFF00364D),
             ),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.pushReplacementNamed(context, '/profile');
+            },
           ),
         ],
       ),

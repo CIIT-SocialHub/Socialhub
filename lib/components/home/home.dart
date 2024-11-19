@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
 import 'package:socialhub/assets/widgets/navigation.dart';
@@ -5,7 +6,6 @@ import 'package:socialhub/assets/widgets/postbar.dart';
 import 'dart:convert';
 import 'dart:io';
 
-// Function to convert BLOB to String (assuming UTF-8 encoding)
 String blobToString(dynamic blobData) {
   if (blobData is List<int>) {
     return utf8.decode(blobData);
@@ -27,8 +27,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _posts = [];
-
-  // MySQL connection settings
+  Uint8List? profilePicBytes;
   final connSettings = ConnectionSettings(
     host: '10.0.2.2',
     port: 3306,
@@ -43,60 +42,79 @@ class _HomePageState extends State<HomePage> {
     _loadPosts();
   }
 
-  // Fetch posts from the database
   Future<void> _loadPosts() async {
     try {
       final conn = await MySqlConnection.connect(connSettings);
 
-      // Updated query to include the username
+      // Updated query to include the username and profile_pic
       var results = await conn.query('''
-  SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp, 
-         posts.visibility, posts.like_count, posts.comment_count, users.username, posts.media_url
-  FROM posts 
-  JOIN users ON posts.user_id = users.user_id 
-  ORDER BY posts.timestamp DESC
-''');
+      SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp, 
+             posts.visibility, posts.like_count, posts.comment_count, 
+             users.username, posts.media_url, users.profile_pic
+      FROM posts 
+      JOIN users ON posts.user_id = users.user_id 
+      ORDER BY posts.timestamp DESC
+    ''');
 
-      // Map results to a list of posts
+      // Initialize list for posts and profilePicBytes
+      List<Map<String, dynamic>> posts = [];
+      Uint8List? fetchedProfilePic;
+
+      for (var row in results) {
+        print('Fetched row: $row'); // Check the row content
+
+        if (row['profile_pic'] != null && row['profile_pic'] is Blob) {
+          fetchedProfilePic =
+              Uint8List.fromList((row['profile_pic'] as Blob).toBytes());
+          print(
+              'Fetched profile picture bytes: $fetchedProfilePic'); // Debug profile pic bytes
+        } else {
+          print('No profile picture available for user ID: ${row['user_id']}');
+        }
+
+        // Add post data to the list
+        posts.add({
+          'post_id': row['post_id'],
+          'user_id': row['user_id'],
+          'content': blobToString(row['content']),
+          'media_url': row['media_url'],
+          'timestamp': row['timestamp'],
+          'visibility': row['visibility'],
+          'like_count': row['like_count'],
+          'comment_count': row['comment_count'],
+          'username': row['username'],
+          'profile_pic':
+              row['profile_pic'] != null && row['profile_pic'] is Blob
+                  ? Uint8List.fromList((row['profile_pic'] as Blob).toBytes())
+                  : null,
+        });
+      }
+
+      // Update state
       setState(() {
-        _posts = results.map((row) {
-          return {
-            'post_id': row[0],
-            'user_id': row[1],
-            'content': blobToString(row[2]),
-            'media_url': row[8],
-            'timestamp': row[3],
-            'visibility': row[4],
-            'like_count': row[5],
-            'comment_count': row[6],
-            'username': row[7],
-          };
-        }).toList();
+        _posts = posts;
+        profilePicBytes = fetchedProfilePic;
       });
-
-      // Close the connection
+      print('Updated posts: $_posts');
+      print('Updated profilePicBytes: $profilePicBytes');
+      print('Rendering profilePicBytes: $profilePicBytes');
+      // Close connection
       await conn.close();
     } catch (e) {
       print('Error fetching posts: $e');
     }
   }
 
-  // Function to handle the like button press
   Future<void> _incrementLikeCount(int postId, int currentLikeCount) async {
     try {
       final conn = await MySqlConnection.connect(connSettings);
-
-      // Update the like count in the database
       var result = await conn.query(
         'UPDATE posts SET like_count = ? WHERE post_id = ?',
         [currentLikeCount + 1, postId],
       );
 
-      // Check if the update was successful
       if (result.affectedRows != null && result.affectedRows! > 0) {
-        // If successful, update the UI
         setState(() {
-          // Find the post and update the like count locally
           final postIndex =
               _posts.indexWhere((post) => post['post_id'] == postId);
           if (postIndex != -1) {
@@ -105,7 +123,6 @@ class _HomePageState extends State<HomePage> {
         });
       }
 
-      // Close the connection
       await conn.close();
     } catch (e) {
       print('Error updating like count: $e');
@@ -120,61 +137,65 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
-          // PostBar Widget for creating a post
           PostBar(
             refreshFeed: _loadPosts,
             userId: widget.userId,
           ),
-
-          // Display the posts
           Expanded(
             child: ListView.builder(
               itemCount: _posts.length,
               itemBuilder: (context, index) {
                 final post = _posts[index];
+                final profilePic = post['profile_pic'];
+
                 return Card(
                   margin: const EdgeInsets.all(10),
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        // Display the username or Anonymous (for visibility)
-                        Text(
-                          post['visibility'] == 'anonymous'
-                              ? 'Anonymous'
-                              : post['username'],
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 25,
+                              backgroundImage: post['profile_pic'] != null
+                                  ? MemoryImage(post['profile_pic'])
+                                  : const AssetImage(
+                                          'assets/images/default_avatar.png')
+                                      as ImageProvider,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              post['visibility'] == 'anonymous'
+                                  ? 'Anonymous'
+                                  : post['username'],
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 10),
-                        // Display the content of the post
                         Text(post['content']),
                         const SizedBox(height: 10),
-                        // Display the Image
-                        post['media_url'] != null
-                            ? post['media_url'].startsWith(
-                                    'http') // Check if the URL is a network URL
-                                ? Image.network(
-                                    post['media_url']) // Load network image
-                                : Image.file(File(
-                                    post['media_url'])) // Load local image file
-                            : Container(), // If no media URL, display an empty container
-                        const SizedBox(height: 10),
+                        if (post['media_url'] != null &&
+                            post['media_url'].isNotEmpty)
+                          post['media_url'].startsWith('http')
+                              ? Image.network(post['media_url'])
+                              : File(post['media_url']).existsSync()
+                                  ? Image.file(File(post['media_url']))
+                                  : Container(),
                         Row(
-                          children: <Widget>[
-                            // Like button (like count)
+                          children: [
                             IconButton(
-                              icon: const Icon(Icons.thumb_up),
+                              icon: const Icon(Icons.arrow_upward_outlined),
                               onPressed: () {
-                                // Increment like count when button is pressed
                                 _incrementLikeCount(
                                     post['post_id'], post['like_count']);
                               },
                             ),
                             Text('${post['like_count']}'),
                             const SizedBox(width: 20),
-                            // Comment button (comment count)
                             const Icon(Icons.comment),
                             Text('${post['comment_count']} comments'),
                           ],

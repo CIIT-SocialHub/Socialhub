@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
 import 'package:socialhub/components/message/chats/chat.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../assets/widgets/navigation.dart'; // For utf8.decode
 
@@ -47,6 +48,11 @@ class _MessagePageState extends State<MessagePage> {
               WHEN sender_id = ? THEN receiver_id
               ELSE sender_id
             END) AS username,
+          (SELECT profile_pic FROM users WHERE user_id = 
+            CASE 
+              WHEN sender_id = ? THEN receiver_id
+              ELSE sender_id
+            END) AS profile_pic,
           MAX(message_text) AS last_message,
           MAX(timestamp) AS last_message_time
         FROM messages
@@ -54,6 +60,7 @@ class _MessagePageState extends State<MessagePage> {
         GROUP BY user_id
         ORDER BY last_message_time DESC;
     ''', [
+        widget.currentUserId,
         widget.currentUserId,
         widget.currentUserId,
         widget.currentUserId,
@@ -74,9 +81,17 @@ class _MessagePageState extends State<MessagePage> {
           messageText = lastMessage.toString();
         }
 
+        // Handle profile_pic as Blob
+        Uint8List? profilePicBytes;
+        if (row['profile_pic'] != null && row['profile_pic'] is Blob) {
+          profilePicBytes =
+              Uint8List.fromList((row['profile_pic'] as Blob).toBytes());
+        }
+
         loadedMessages.add({
           'user_id': row['user_id'],
           'username': row['username'] ?? 'Unknown User',
+          'profile_pic': profilePicBytes, // Store profile picture bytes
           'last_message': messageText,
           'last_message_time': row['last_message_time']?.toString() ?? '',
         });
@@ -113,11 +128,16 @@ class _MessagePageState extends State<MessagePage> {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
+                    final profilePic = message['profile_pic'];
+
                     return ListTile(
                       leading: CircleAvatar(
-                        child: Text(
-                          message['username']?[0].toUpperCase() ?? 'U',
-                        ),
+                        radius: 25,
+                        backgroundImage: profilePic != null
+                            ? MemoryImage(profilePic)
+                            : const AssetImage(
+                                    'assets/images/default_avatar.png')
+                                as ImageProvider,
                       ),
                       title: Text(message['username']),
                       subtitle: Text(message['last_message']),
@@ -145,32 +165,6 @@ class _MessagePageState extends State<MessagePage> {
                     );
                   },
                 ),
-      bottomNavigationBar: SocialMediaBottomNavBar(),
-    );
-  }
-}
-
-class ChatScreen extends StatelessWidget {
-  final int currentUserId;
-  final int chatUserId;
-  final String chatUserName;
-
-  const ChatScreen({
-    Key? key,
-    required this.currentUserId,
-    required this.chatUserId,
-    required this.chatUserName,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Chat with $chatUserName'),
-      ),
-      body: const Center(
-        child: Text('Chat functionality coming soon!'),
-      ),
       bottomNavigationBar: SocialMediaBottomNavBar(),
     );
   }

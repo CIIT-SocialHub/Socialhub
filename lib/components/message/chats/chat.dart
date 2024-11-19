@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
-import 'dart:convert'; // To decode binary data if necessary
+import 'dart:convert';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 
 class ChatPage extends StatefulWidget {
   final int currentUserId;
@@ -21,6 +22,7 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   List<Map<String, dynamic>> _messages = [];
   final TextEditingController _messageController = TextEditingController();
+  bool _showEmojiPicker = false;
 
   // MySQL connection settings
   final connSettings = ConnectionSettings(
@@ -119,6 +121,16 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  void _onEmojiSelected(Emoji emoji) {
+    _messageController.text += emoji.emoji;
+  }
+
+  void _toggleEmojiPicker() {
+    setState(() {
+      _showEmojiPicker = !_showEmojiPicker;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,6 +167,10 @@ class _ChatPageState extends State<ChatPage> {
             padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.emoji_emotions_outlined),
+                  onPressed: _toggleEmojiPicker,
+                ),
                 Expanded(
                   child: TextField(
                     controller: _messageController,
@@ -162,6 +178,14 @@ class _ChatPageState extends State<ChatPage> {
                       hintText: 'Type a message...',
                       border: OutlineInputBorder(),
                     ),
+                    onTap: () {
+                      // Close emoji picker when typing
+                      if (_showEmojiPicker) {
+                        setState(() {
+                          _showEmojiPicker = false;
+                        });
+                      }
+                    },
                   ),
                 ),
                 IconButton(

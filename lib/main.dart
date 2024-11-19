@@ -7,6 +7,8 @@ import 'package:socialhub/components/landing/login/login.dart';
 import 'package:socialhub/components/landing/register/register.dart';
 import 'package:socialhub/components/message/chats/chat.dart';
 import 'package:socialhub/components/message/message.dart';
+import 'package:socialhub/components/profile/editprofile.dart';
+import 'package:socialhub/components/profile/profile.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +30,28 @@ class MyApp extends StatelessWidget {
     return {'userId': userId, 'username': username};
   }
 
+  MaterialPageRoute _buildFutureRoute({
+    required Widget Function(Map<String, dynamic> userDetails) builder,
+  }) {
+    return MaterialPageRoute(
+      builder: (context) => FutureBuilder<Map<String, dynamic>>(
+        future: getUserDetailsFromPreferences(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            return const Scaffold(
+              body: Center(child: Text('Error loading user details')),
+            );
+          }
+          return builder(snapshot.data!);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -38,72 +62,50 @@ class MyApp extends StatelessWidget {
         '/': (context) => const Landing(),
         '/login': (context) => const Login(),
         '/signup': (context) => const Register(),
+        // Remove '/editprofile' from static routes since it requires arguments
       },
       onGenerateRoute: (settings) {
-        // Handle routes requiring user details dynamically
         switch (settings.name) {
-          case '/messages':
-            return MaterialPageRoute(
-              builder: (context) => FutureBuilder<Map<String, dynamic>>(
-                future: getUserDetailsFromPreferences(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Scaffold(
-                      body: Center(child: CircularProgressIndicator()),
-                    );
-                  } else if (snapshot.hasError || !snapshot.hasData) {
-                    return const Scaffold(
-                      body: Center(child: Text('Error loading user details')),
-                    );
-                  }
-                  final userDetails = snapshot.data!;
-                  return MessagePage(currentUserId: userDetails['userId']);
-                },
+          case '/profile':
+            return _buildFutureRoute(
+              builder: (userDetails) => ProfilePage(
+                userId: userDetails['userId'],
+                username: userDetails['username'],
               ),
             );
           case '/messages':
-            return MaterialPageRoute(
-              builder: (context) => FutureBuilder<Map<String, dynamic>>(
-                future: getUserDetailsFromPreferences(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Scaffold(
-                      body: Center(child: CircularProgressIndicator()),
-                    );
-                  } else if (snapshot.hasError || !snapshot.hasData) {
-                    return const Scaffold(
-                      body: Center(child: Text('Error loading user details')),
-                    );
-                  }
-                  final userDetails = snapshot.data!;
-                  return MessagePage(currentUserId: userDetails['userId']);
-                },
+            return _buildFutureRoute(
+              builder: (userDetails) => MessagePage(
+                currentUserId: userDetails['userId'],
               ),
             );
           case '/home':
+            return _buildFutureRoute(
+              builder: (userDetails) => HomePage(
+                userId: userDetails['userId'],
+                username: userDetails['username'],
+              ),
+            );
+          case '/editprofile':
+            // Ensure arguments are passed correctly
+            if (settings.arguments is int) {
+              final userId = settings.arguments as int;
+              return MaterialPageRoute(
+                builder: (context) => EditProfilePage(userId: userId),
+              );
+            }
+            // If arguments are not correct, show an error page or fallback
             return MaterialPageRoute(
-              builder: (context) => FutureBuilder<Map<String, dynamic>>(
-                future: getUserDetailsFromPreferences(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Scaffold(
-                      body: Center(child: CircularProgressIndicator()),
-                    );
-                  } else if (snapshot.hasError || !snapshot.hasData) {
-                    return const Scaffold(
-                      body: Center(child: Text('Error loading user details')),
-                    );
-                  }
-                  final userDetails = snapshot.data!;
-                  return HomePage(
-                    userId: userDetails['userId'],
-                    username: userDetails['username'],
-                  );
-                },
+              builder: (context) => const Scaffold(
+                body: Center(child: Text('Invalid arguments for /editprofile')),
               ),
             );
           default:
-            return null; // Return null for undefined routes
+            return MaterialPageRoute(
+              builder: (context) => const Scaffold(
+                body: Center(child: Text('Route not found')),
+              ),
+            );
         }
       },
     );
