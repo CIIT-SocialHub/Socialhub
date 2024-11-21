@@ -35,8 +35,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    print(
-        'Initializing chat for ${widget.chatUserName}'); // Debug: Log when chat page initializes
+    print('Initializing chat for ${widget.chatUserName}');
     _loadMessages();
   }
 
