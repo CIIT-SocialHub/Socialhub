@@ -24,9 +24,8 @@ class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   bool _showEmojiPicker = false;
 
-  // MySQL connection settings
   final connSettings = ConnectionSettings(
-    host: '10.0.2.2', // Adjust this for real device or emulator
+    host: '10.0.2.2',
     port: 3306,
     db: 'socialhub',
     user: 'flutter',
@@ -59,24 +58,22 @@ class _ChatPageState extends State<ChatPage> {
         ],
       );
 
-      print('Raw results: $results'); // Debug: Log raw results
+      print('Raw results: $results');
 
       setState(() {
         _messages = results.map((row) {
           var message = row[1];
 
-          // Debug: Check type of message
           print('Message type before processing: ${message.runtimeType}');
 
-          // Decode Blob or List<int> to a string
           if (message is Blob) {
             message = utf8.decode(message.toBytes());
-            print('Decoded Blob message: $message'); // Debug
+            print('Decoded Blob message: $message');
           } else if (message is List<int>) {
             message = utf8.decode(message);
-            print('Decoded List<int> message: $message'); // Debug
+            print('Decoded List<int> message: $message');
           } else {
-            print('Unexpected message type: $message'); // Debug
+            print('Unexpected message type: $message');
           }
 
           return {
@@ -87,7 +84,7 @@ class _ChatPageState extends State<ChatPage> {
         }).toList();
       });
 
-      print('Processed messages: $_messages'); // Debug
+      print('Processed messages: $_messages');
 
       await conn.close();
     } catch (e) {
@@ -95,10 +92,9 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  // Send a new message
   Future<void> _sendMessage(String message) async {
     try {
-      print('Sending message: $message'); // Debug: Log the message being sent
+      print('Sending message: $message');
       final conn = await MySqlConnection.connect(connSettings);
 
       await conn.query(
@@ -108,16 +104,13 @@ class _ChatPageState extends State<ChatPage> {
       );
 
       _messageController.clear();
-      print(
-          'Message sent. Reloading messages...'); // Debug: Log after sending message
+      print('Message sent. Reloading messages...');
       _loadMessages();
 
       await conn.close();
-      print(
-          'Connection closed after sending message'); // Debug: Log after closing connection
+      print('Connection closed after sending message');
     } catch (e) {
-      print(
-          'Error sending message: $e'); // Debug: Log any error during sending message
+      print('Error sending message: $e');
     }
   }
 
@@ -145,8 +138,7 @@ class _ChatPageState extends State<ChatPage> {
               itemBuilder: (context, index) {
                 final message = _messages[index];
                 final isMe = message['sender_id'] == widget.currentUserId;
-                print(
-                    'Displaying message from user ${message['sender_id']}'); // Debug: Log which user’s message is being displayed
+                print('Displaying message from user ${message['sender_id']}');
                 return Align(
                   alignment:
                       isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -179,7 +171,6 @@ class _ChatPageState extends State<ChatPage> {
                       border: OutlineInputBorder(),
                     ),
                     onTap: () {
-                      // Close emoji picker when typing
                       if (_showEmojiPicker) {
                         setState(() {
                           _showEmojiPicker = false;
@@ -192,12 +183,10 @@ class _ChatPageState extends State<ChatPage> {
                   icon: const Icon(Icons.send),
                   onPressed: () {
                     if (_messageController.text.trim().isNotEmpty) {
-                      print(
-                          'Message text is not empty. Sending message...'); // Debug: Log when message is being sent
+                      print('Message text is not empty. Sending message...');
                       _sendMessage(_messageController.text.trim());
                     } else {
-                      print(
-                          'Message text is empty, not sending'); // Debug: Log if the message is empty
+                      print('Message text is empty, not sending');
                     }
                   },
                 ),

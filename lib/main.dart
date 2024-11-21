@@ -62,7 +62,6 @@ class MyApp extends StatelessWidget {
         '/': (context) => const Landing(),
         '/login': (context) => const Login(),
         '/signup': (context) => const Register(),
-        // Remove '/editprofile' from static routes since it requires arguments
       },
       onGenerateRoute: (settings) {
         switch (settings.name) {
@@ -87,14 +86,12 @@ class MyApp extends StatelessWidget {
               ),
             );
           case '/editprofile':
-            // Ensure arguments are passed correctly
             if (settings.arguments is int) {
               final userId = settings.arguments as int;
               return MaterialPageRoute(
                 builder: (context) => EditProfilePage(userId: userId),
               );
             }
-            // If arguments are not correct, show an error page or fallback
             return MaterialPageRoute(
               builder: (context) => const Scaffold(
                 body: Center(child: Text('Invalid arguments for /editprofile')),

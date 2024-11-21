@@ -4,7 +4,7 @@ import 'package:socialhub/components/message/chats/chat.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../../assets/widgets/navigation.dart'; // For utf8.decode
+import '../../assets/widgets/navigation.dart';
 
 class MessagePage extends StatefulWidget {
   final int currentUserId;
@@ -27,16 +27,14 @@ class _MessagePageState extends State<MessagePage> {
 
   Future<void> _fetchMessages() async {
     try {
-      // Connect to the database
       final conn = await MySqlConnection.connect(ConnectionSettings(
-        host: '10.0.2.2', // Android emulator, or device IP
+        host: '10.0.2.2',
         port: 3306,
         db: 'socialhub',
         user: 'flutter',
         password: 'flutter',
       ));
 
-      // Execute the query
       final results = await conn.query('''
         SELECT 
           CASE 
@@ -67,13 +65,10 @@ class _MessagePageState extends State<MessagePage> {
         widget.currentUserId,
       ]);
 
-      // Process results
       List<Map<String, dynamic>> loadedMessages = [];
       for (var row in results) {
-        // Check if the message is a Blob (binary data)
         var lastMessage = row['last_message'];
 
-        // If it's a Blob, convert it to a List<int> and decode
         String messageText = '';
         if (lastMessage is List<int>) {
           messageText = utf8.decode(lastMessage);
@@ -81,7 +76,6 @@ class _MessagePageState extends State<MessagePage> {
           messageText = lastMessage.toString();
         }
 
-        // Handle profile_pic as Blob
         Uint8List? profilePicBytes;
         if (row['profile_pic'] != null && row['profile_pic'] is Blob) {
           profilePicBytes =
@@ -91,22 +85,19 @@ class _MessagePageState extends State<MessagePage> {
         loadedMessages.add({
           'user_id': row['user_id'],
           'username': row['username'] ?? 'Unknown User',
-          'profile_pic': profilePicBytes, // Store profile picture bytes
+          'profile_pic': profilePicBytes,
           'last_message': messageText,
           'last_message_time': row['last_message_time']?.toString() ?? '',
         });
       }
 
-      // Close the connection
       await conn.close();
 
-      // Update state
       setState(() {
         messages = loadedMessages;
         isLoading = false;
       });
     } catch (e) {
-      // Handle errors
       print('Error fetching messages: $e');
       setState(() {
         isLoading = false;
@@ -136,7 +127,7 @@ class _MessagePageState extends State<MessagePage> {
                         backgroundImage: profilePic != null
                             ? MemoryImage(profilePic)
                             : const AssetImage(
-                                    'assets/images/default_avatar.png')
+                                    'lib/assets/images/default_avatar.png')
                                 as ImageProvider,
                       ),
                       title: Text(message['username']),
@@ -145,19 +136,14 @@ class _MessagePageState extends State<MessagePage> {
                         message['last_message_time'],
                         style: const TextStyle(fontSize: 12),
                       ),
-                      // Inside your ListView or where you display the messages
                       onTap: () {
-                        // Navigate to chat screen
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => ChatPage(
-                              currentUserId: widget
-                                  .currentUserId, // Assuming this is the current user ID
-                              chatUserId: message[
-                                  'user_id'], // The user ID of the person you're chatting with
-                              chatUserName: message[
-                                  'username'], // The username of the chat partner
+                              currentUserId: widget.currentUserId,
+                              chatUserId: message['user_id'],
+                              chatUserName: message['username'],
                             ),
                           ),
                         );

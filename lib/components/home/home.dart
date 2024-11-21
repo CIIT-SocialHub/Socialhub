@@ -27,7 +27,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _posts = [];
-  Uint8List? profilePicBytes;
+  final Map<int, TextEditingController> _commentControllers = {};
   final connSettings = ConnectionSettings(
     host: '10.0.2.2',
     port: 3306,
@@ -46,33 +46,17 @@ class _HomePageState extends State<HomePage> {
     try {
       final conn = await MySqlConnection.connect(connSettings);
 
-      // Updated query to include the username and profile_pic
       var results = await conn.query('''
-      SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp, 
+      SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp,
              posts.visibility, posts.like_count, posts.comment_count, 
              users.username, posts.media_url, users.profile_pic
       FROM posts 
       JOIN users ON posts.user_id = users.user_id 
       ORDER BY posts.timestamp DESC
-    ''');
+      ''');
 
-      // Initialize list for posts and profilePicBytes
       List<Map<String, dynamic>> posts = [];
-      Uint8List? fetchedProfilePic;
-
       for (var row in results) {
-        print('Fetched row: $row'); // Check the row content
-
-        if (row['profile_pic'] != null && row['profile_pic'] is Blob) {
-          fetchedProfilePic =
-              Uint8List.fromList((row['profile_pic'] as Blob).toBytes());
-          print(
-              'Fetched profile picture bytes: $fetchedProfilePic'); // Debug profile pic bytes
-        } else {
-          print('No profile picture available for user ID: ${row['user_id']}');
-        }
-
-        // Add post data to the list
         posts.add({
           'post_id': row['post_id'],
           'user_id': row['user_id'],
@@ -87,21 +71,87 @@ class _HomePageState extends State<HomePage> {
               row['profile_pic'] != null && row['profile_pic'] is Blob
                   ? Uint8List.fromList((row['profile_pic'] as Blob).toBytes())
                   : null,
+          'comments': []
         });
+
+        _commentControllers[row['post_id']] = TextEditingController();
       }
 
-      // Update state
       setState(() {
         _posts = posts;
-        profilePicBytes = fetchedProfilePic;
       });
-      print('Updated posts: $_posts');
-      print('Updated profilePicBytes: $profilePicBytes');
-      print('Rendering profilePicBytes: $profilePicBytes');
-      // Close connection
+
       await conn.close();
     } catch (e) {
       print('Error fetching posts: $e');
+    }
+  }
+
+  Future<void> _loadComments(int postId, int postIndex) async {
+    try {
+      final conn = await MySqlConnection.connect(connSettings);
+
+      var result = await conn.query('''
+        SELECT comment_id, user_id, comment, timestamp 
+        FROM comments WHERE post_id = ?
+      ''', [postId]);
+
+      List<Map<String, dynamic>> comments = [];
+      for (var row in result) {
+        comments.add({
+          'comment_id': row['comment_id'],
+          'user_id': row['user_id'],
+          'content': blobToString(row['comment']),
+          'timestamp': row['timestamp']
+        });
+      }
+
+      setState(() {
+        _posts[postIndex]['comments'] = comments;
+      });
+
+      await conn.close();
+    } catch (e) {
+      print('Error fetching comments: $e');
+    }
+  }
+
+  Future<void> _addComment(int postId, String commentContent) async {
+    if (commentContent.isEmpty) return;
+
+    try {
+      final conn = await MySqlConnection.connect(connSettings);
+
+      // Convert DateTime to UTC
+      final utcTimestamp = DateTime.now().toUtc();
+
+      // Insert the comment into the database
+      await conn.query('''
+      INSERT INTO comments (post_id, user_id, comment, timestamp)
+      VALUES (?, ?, ?, ?)
+    ''', [postId, widget.userId, commentContent, utcTimestamp]);
+
+      // Update comment count for the post
+      await conn.query('''
+      UPDATE posts SET comment_count = comment_count + 1 WHERE post_id = ?
+    ''', [postId]);
+
+      // Fetch the updated comments for this post
+      final postIndex = _posts.indexWhere((post) => post['post_id'] == postId);
+      if (postIndex != -1) {
+        await _loadComments(postId, postIndex);
+      }
+
+      setState(() {
+        _posts[postIndex]['comment_count']++;
+      });
+
+      // Clear the respective controller's text
+      _commentControllers[postId]?.clear();
+
+      await conn.close();
+    } catch (e) {
+      print('Error adding comment: $e');
     }
   }
 
@@ -146,7 +196,6 @@ class _HomePageState extends State<HomePage> {
               itemCount: _posts.length,
               itemBuilder: (context, index) {
                 final post = _posts[index];
-                final profilePic = post['profile_pic'];
 
                 return Card(
                   margin: const EdgeInsets.all(10),
@@ -162,7 +211,7 @@ class _HomePageState extends State<HomePage> {
                               backgroundImage: post['profile_pic'] != null
                                   ? MemoryImage(post['profile_pic'])
                                   : const AssetImage(
-                                          'assets/images/default_avatar.png')
+                                          'lib/assets/images/default_avatar.png')
                                       as ImageProvider,
                             ),
                             const SizedBox(width: 10),
@@ -201,6 +250,48 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                         const Divider(),
+                        // Display Comments
+                        if (post['comments'].isNotEmpty)
+                          ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: post['comments'].length,
+                            itemBuilder: (context, commentIndex) {
+                              final comment = post['comments'][commentIndex];
+                              return ListTile(
+                                title: Text(comment['content']),
+                                subtitle: Text('By ${comment['user_id']}'),
+                              );
+                            },
+                          ),
+                        // Comment Input
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller:
+                                      _commentControllers[post['post_id']],
+                                  decoration: InputDecoration(
+                                    hintText: 'Add a comment...',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.send),
+                                onPressed: () {
+                                  _addComment(
+                                      post['post_id'],
+                                      _commentControllers[post['post_id']]!
+                                          .text);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
