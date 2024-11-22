@@ -3,6 +3,7 @@ import 'package:mysql1/mysql1.dart';
 import 'package:socialhub/components/message/chats/chat.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:intl/intl.dart';
 
 import '../../assets/widgets/navigation.dart';
 
@@ -133,7 +134,8 @@ class _MessagePageState extends State<MessagePage> {
                       title: Text(message['username']),
                       subtitle: Text(message['last_message']),
                       trailing: Text(
-                        message['last_message_time'],
+                        DateFormat('h:mm a').format(
+                            DateTime.parse(message['last_message_time'])),
                         style: const TextStyle(fontSize: 12),
                       ),
                       onTap: () {

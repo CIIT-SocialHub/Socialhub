@@ -36,12 +36,14 @@ dependencies:
   firebase_auth: ^4.0.0 # Ensure compatibility with firebase_core
   shared_preferences: ^2.0.16
   emoji_picker_flutter: ^1.0.0
+  intl: ^0.18.0
 
 
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.6
+  timeago: ^3.7.0
 
 dev_dependencies:
   flutter_test:

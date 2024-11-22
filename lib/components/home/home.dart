@@ -5,6 +5,7 @@ import 'package:socialhub/assets/widgets/navigation.dart';
 import 'package:socialhub/assets/widgets/postbar.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:timeago/timeago.dart' as timeago;
 
 String blobToString(dynamic blobData) {
   if (blobData is List<int>) {
@@ -62,7 +63,7 @@ class _HomePageState extends State<HomePage> {
           'user_id': row['user_id'],
           'content': blobToString(row['content']),
           'media_url': row['media_url'],
-          'timestamp': row['timestamp'],
+          'timestamp': timeago.format(row['timestamp']),
           'visibility': row['visibility'],
           'like_count': row['like_count'],
           'comment_count': row['comment_count'],
@@ -215,12 +216,26 @@ class _HomePageState extends State<HomePage> {
                                       as ImageProvider,
                             ),
                             const SizedBox(width: 10),
-                            Text(
-                              post['visibility'] == 'anonymous'
-                                  ? 'Anonymous'
-                                  : post['username'],
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  post['visibility'] == 'anonymous'
+                                      ? 'Anonymous'
+                                      : post['username'],
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
+                                ),
+                                const SizedBox(
+                                    height:
+                                        4), // Space between username and timestamp
+                                Text(
+                                  post['timestamp'],
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.grey),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -250,22 +265,8 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                         const Divider(),
-                        // Display Comments
-                        if (post['comments'].isNotEmpty)
-                          ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: post['comments'].length,
-                            itemBuilder: (context, commentIndex) {
-                              final comment = post['comments'][commentIndex];
-                              return ListTile(
-                                title: Text(comment['content']),
-                                subtitle: Text('By ${comment['user_id']}'),
-                              );
-                            },
-                          ),
-                        // Comment Input
                         Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
                           child: Row(
                             children: [
                               Expanded(
@@ -275,8 +276,12 @@ class _HomePageState extends State<HomePage> {
                                   decoration: InputDecoration(
                                     hintText: 'Add a comment...',
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
@@ -292,6 +297,21 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                         ),
+
+                        // Display Comments
+                        if (post['comments'].isNotEmpty)
+                          ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: post['comments'].length,
+                            itemBuilder: (context, commentIndex) {
+                              final comment = post['comments'][commentIndex];
+                              return ListTile(
+                                title: Text(comment['content']),
+                                subtitle: Text('By ${comment['user_id']}'),
+                              );
+                            },
+                          ),
+                        // Comment Input
                       ],
                     ),
                   ),
