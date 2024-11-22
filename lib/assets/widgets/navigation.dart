@@ -17,7 +17,10 @@ class SocialMediaBottomNavBar extends StatelessWidget {
               color: Color(0xFF00364D),
             ),
             onPressed: () {
-              Navigator.pushReplacementNamed(context, '/messages');
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/messages',
+                (route) => false, // Remove all previous routes
+              );
             },
           ),
           const SizedBox(width: 28),
@@ -27,7 +30,10 @@ class SocialMediaBottomNavBar extends StatelessWidget {
               color: Color(0xFF00364D),
             ),
             onPressed: () {
-              Navigator.pushReplacementNamed(context, '/home');
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/home',
+                (route) => false, // Remove all previous routes
+              );
             },
           ),
           const SizedBox(width: 28),
@@ -37,7 +43,10 @@ class SocialMediaBottomNavBar extends StatelessWidget {
               color: Color(0xFF00364D),
             ),
             onPressed: () {
-              Navigator.pushReplacementNamed(context, '/profile');
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/profile',
+                (route) => false, // Remove all previous routes
+              );
             },
           ),
         ],

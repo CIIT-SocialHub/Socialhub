@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
 import 'dart:io';
@@ -37,7 +36,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _loadCurrentUserDetails();
   }
 
-  // Load current user details to pre-fill the form
   Future<void> _loadCurrentUserDetails() async {
     try {
       final conn = await MySqlConnection.connect(connSettings);
@@ -71,7 +69,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  // Update user details in the database
   Future<void> _updateUserProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -81,35 +78,40 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final conn = await MySqlConnection.connect(connSettings);
-
-      // Convert profile picture to binary data if selected
       Uint8List? profilePicData;
       if (_selectedImage != null) {
         profilePicData = await _selectedImage!.readAsBytes();
       }
 
-      // Update query
-      await conn.query(
-        '''
-        UPDATE users 
-        SET username = ?, bio = ?, profile_pic = ?
-        WHERE user_id = ?
-        ''',
-        [
-          _usernameController.text,
-          _bioController.text,
-          profilePicData,
-          widget.userId,
-        ],
-      );
+      final updateQuery = profilePicData != null
+          ? '''
+            UPDATE users 
+            SET username = ?, bio = ?, profile_pic = ?
+            WHERE user_id = ?
+            '''
+          : '''
+            UPDATE users 
+            SET username = ?, bio = ?
+            WHERE user_id = ?
+            ''';
+
+      final params = profilePicData != null
+          ? [
+              _usernameController.text,
+              _bioController.text,
+              profilePicData,
+              widget.userId
+            ]
+          : [_usernameController.text, _bioController.text, widget.userId];
+
+      await conn.query(updateQuery, params);
 
       await conn.close();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile updated successfully!')),
       );
 
-      Navigator.pop(context); // Return to ProfilePage
+      Navigator.pop(context);
     } catch (e) {
       print('Error updating profile: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,15 +124,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  // Pick an image from the gallery
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final ImagePicker picker = ImagePicker();
+    final XFile? pickedFile =
+        await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
       setState(() {
         _selectedImage = File(pickedFile.path);
       });
+    } else {
+      print('No image selected.');
     }
   }
 
@@ -159,33 +163,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     Center(
                       child: GestureDetector(
                         onTap: _pickImage,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CircleAvatar(
-                              radius: 50,
-                              backgroundImage: _selectedImage != null
-                                  ? FileImage(_selectedImage!)
-                                  : const AssetImage(
-                                      'assets/images/default_avatar.png',
-                                    ) as ImageProvider,
-                            ),
-                            Container(
-                              width: 100,
-                              height: 100,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black.withOpacity(0.4),
-                              ),
-                              child: const Icon(Icons.camera_alt,
-                                  color: Colors.white, size: 30),
-                            ),
-                          ],
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundImage: _selectedImage != null
+                              ? FileImage(_selectedImage!)
+                              : const AssetImage(
+                                      'assets/images/default_avatar.png')
+                                  as ImageProvider,
                         ),
                       ),
                     ),
                     const SizedBox(height: 20),
-                    // Username Field
                     TextFormField(
                       controller: _usernameController,
                       decoration: const InputDecoration(
@@ -200,7 +188,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    // Bio Field
                     TextFormField(
                       controller: _bioController,
                       decoration: const InputDecoration(
@@ -216,7 +203,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    // Save Button
                     ElevatedButton(
                       onPressed: _updateUserProfile,
                       style: ElevatedButton.styleFrom(

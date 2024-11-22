@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:mysql1/mysql1.dart';
+import 'package:socialhub/assets/widgets/header.dart';
 import 'package:socialhub/assets/widgets/navigation.dart';
 import 'package:socialhub/assets/widgets/postbar.dart';
 import 'dart:convert';
@@ -183,15 +184,9 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Welcome, ${widget.username}!'),
-      ),
+      appBar: Header(userId: widget.userId.toString()),
       body: Column(
         children: [
-          PostBar(
-            refreshFeed: _loadPosts,
-            userId: widget.userId,
-          ),
           Expanded(
             child: ListView.builder(
               itemCount: _posts.length,
@@ -318,6 +313,10 @@ class _HomePageState extends State<HomePage> {
                 );
               },
             ),
+          ),
+          PostBar(
+            refreshFeed: _loadPosts,
+            userId: widget.userId,
           ),
         ],
       ),
