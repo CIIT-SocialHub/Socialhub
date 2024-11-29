@@ -48,17 +48,58 @@ class _HomePageState extends State<HomePage> {
     try {
       final conn = await MySqlConnection.connect(connSettings);
 
+      // Fetch the most recent post of the logged-in user
+      var recentUserPostResult = await conn.query('''
+        SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp,
+               posts.visibility, posts.like_count, posts.comment_count, 
+               users.username, posts.media_url, users.profile_pic
+        FROM posts 
+        JOIN users ON posts.user_id = users.user_id 
+        WHERE posts.user_id = ? 
+        ORDER BY posts.timestamp DESC
+        LIMIT 1
+      ''', [widget.userId]);
+
+      Map<String, dynamic>? recentUserPost;
+      if (recentUserPostResult.isNotEmpty) {
+        var row = recentUserPostResult.first;
+        recentUserPost = {
+          'post_id': row['post_id'],
+          'user_id': row['user_id'],
+          'content': blobToString(row['content']),
+          'media_url': row['media_url'],
+          'timestamp': timeago.format(row['timestamp']),
+          'visibility': row['visibility'],
+          'like_count': row['like_count'],
+          'comment_count': row['comment_count'],
+          'username': row['username'],
+          'profile_pic':
+              row['profile_pic'] != null && row['profile_pic'] is Blob
+                  ? Uint8List.fromList((row['profile_pic'] as Blob).toBytes())
+                  : null,
+          'comments': []
+        };
+
+        _commentControllers[row['post_id']] = TextEditingController();
+      }
+
+      // Fetch all other posts
       var results = await conn.query('''
-      SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp,
-             posts.visibility, posts.like_count, posts.comment_count, 
-             users.username, posts.media_url, users.profile_pic
-      FROM posts 
-      JOIN users ON posts.user_id = users.user_id 
-      ORDER BY posts.timestamp DESC
+        SELECT posts.post_id, posts.user_id, posts.content, posts.timestamp,
+               posts.visibility, posts.like_count, posts.comment_count, 
+               users.username, posts.media_url, users.profile_pic
+        FROM posts 
+        JOIN users ON posts.user_id = users.user_id 
+        ORDER BY posts.timestamp DESC
       ''');
 
       List<Map<String, dynamic>> posts = [];
       for (var row in results) {
+        // Skip adding the logged-in user's most recent post to avoid duplication
+        if (recentUserPost != null &&
+            row['post_id'] == recentUserPost['post_id']) {
+          continue;
+        }
         posts.add({
           'post_id': row['post_id'],
           'user_id': row['user_id'],
@@ -79,8 +120,13 @@ class _HomePageState extends State<HomePage> {
         _commentControllers[row['post_id']] = TextEditingController();
       }
 
+      // Combine the most recent user post with other posts
       setState(() {
-        _posts = posts;
+        _posts = [];
+        if (recentUserPost != null) {
+          _posts.add(recentUserPost);
+        }
+        _posts.addAll(posts);
       });
 
       await conn.close();
@@ -127,18 +173,15 @@ class _HomePageState extends State<HomePage> {
       // Convert DateTime to UTC
       final utcTimestamp = DateTime.now().toUtc();
 
-      // Insert the comment into the database
       await conn.query('''
       INSERT INTO comments (post_id, user_id, comment, timestamp)
       VALUES (?, ?, ?, ?)
     ''', [postId, widget.userId, commentContent, utcTimestamp]);
 
-      // Update comment count for the post
       await conn.query('''
       UPDATE posts SET comment_count = comment_count + 1 WHERE post_id = ?
     ''', [postId]);
 
-      // Fetch the updated comments for this post
       final postIndex = _posts.indexWhere((post) => post['post_id'] == postId);
       if (postIndex != -1) {
         await _loadComments(postId, postIndex);
@@ -148,7 +191,6 @@ class _HomePageState extends State<HomePage> {
         _posts[postIndex]['comment_count']++;
       });
 
-      // Clear the respective controller's text
       _commentControllers[postId]?.clear();
 
       await conn.close();

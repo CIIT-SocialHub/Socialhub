@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mysql1/mysql1.dart';
 import 'package:socialhub/assets/widgets/header.dart';
 import 'package:socialhub/assets/widgets/navigation.dart';
@@ -23,8 +24,10 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  bool isFollowing = false;
   Map<String, dynamic> _userDetails = {};
   Uint8List? profilePicBytes;
+  List<Map<String, dynamic>> suggestedUsers = [];
 
   // MySQL connection settings
   final connSettings = ConnectionSettings(
@@ -39,20 +42,30 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadUserDetails();
+    _loadSuggestedUsers();
   }
 
   Future<void> _loadUserDetails() async {
     try {
       final conn = await MySqlConnection.connect(connSettings);
-      var results = await conn.query(
-        '''
-    SELECT users.username, users.email, users.profile_pic, users.bio, users.created_at, courses.course_code 
-    FROM users
-    JOIN courses ON users.course_id = courses.id
-    WHERE users.user_id = ?
-    ''',
-        [widget.userId],
-      );
+      var results = await conn.query('''
+SELECT users.username, users.email, users.profile_pic, users.bio, users.created_at, courses.course_code, users.user_id
+FROM users 
+JOIN courses ON users.course_id = courses.id 
+WHERE users.user_id = ? 
+''', [widget.userId]);
+
+      print('Query Result: $results');
+      if (results.isNotEmpty) {
+        var user = results.first;
+        print('Fetched user: $user'); // Debug print to check the user data
+        // Additional checks for user_id
+        print('User ID: ${user['user_id']}');
+      } else {
+        print('No user found for ID ${widget.userId}');
+      }
+
+      print('Query Result: $results');
 
       if (results.isNotEmpty) {
         var user = results.first;
@@ -69,9 +82,6 @@ class _ProfilePageState extends State<ProfilePage> {
             profileBytes = Uint8List.fromList(profileBlob);
             print(
                 'Fetched profile picture as List<int>, size: ${profileBytes.length}');
-          } else {
-            print(
-                'Unexpected profile_pic data type: ${profileBlob.runtimeType}');
           }
         }
 
@@ -95,27 +105,11 @@ class _ProfilePageState extends State<ProfilePage> {
           } catch (e) {
             print('Error parsing created_at as List<int>: $e');
           }
-        } else {
-          print('Unhandled created_at format: ${createdAt.runtimeType}');
-        }
-
-        String _convertBlobToString(dynamic blob) {
-          if (blob == null) {
-            return ''; // Default to empty string if bio is null
-          } else if (blob is Blob) {
-            return String.fromCharCodes(blob.toBytes());
-          } else if (blob is List<int>) {
-            return String.fromCharCodes(blob);
-          } else if (blob is String) {
-            return blob; // Already a String
-          } else {
-            throw Exception(
-                'Unexpected data type for bio: ${blob.runtimeType}');
-          }
         }
 
         setState(() {
           _userDetails = {
+            'user_id': user['user_id'],
             'username': user['username'],
             'email': user['email'],
             'bio': _convertBlobToString(user['bio']), // Convert bio to string
@@ -133,6 +127,152 @@ class _ProfilePageState extends State<ProfilePage> {
       await conn.close();
     } catch (e) {
       print('Error fetching user details: $e');
+    }
+  }
+
+  Future<Uint8List> _getProfilePic(dynamic profilePic) async {
+    if (profilePic != null) {
+      if (profilePic is List<int>) {
+        return Uint8List.fromList(profilePic);
+      } else if (profilePic is Blob) {
+        return Uint8List.fromList(profilePic.toBytes());
+      }
+    }
+    // If no profile picture, return the default avatar
+    return await loadImage('lib/assets/images/default_avatar.png');
+  }
+
+  Future<Uint8List> loadImage(String assetPath) async {
+    final ByteData data = await rootBundle.load(assetPath);
+    return data.buffer.asUint8List();
+  }
+
+  Future<void> _loadSuggestedUsers() async {
+    try {
+      final conn = await MySqlConnection.connect(connSettings);
+
+      // Get users with the same course (80%)
+      var sameCourseResults = await conn.query(
+        '''
+    SELECT users.username, users.profile_pic, users.course_id 
+    FROM users
+    WHERE users.course_id = (SELECT course_id FROM users WHERE user_id = ?)
+    LIMIT 80
+    ''',
+        [widget.userId],
+      );
+
+      // Get users with different courses (20%)
+      var otherCourseResults = await conn.query(
+        '''
+    SELECT users.username, users.profile_pic, users.course_id 
+    FROM users
+    WHERE users.course_id != (SELECT course_id FROM users WHERE user_id = ?)
+    LIMIT 20
+    ''',
+        [widget.userId],
+      );
+
+      setState(() {
+        suggestedUsers = [
+          ...sameCourseResults.map((row) {
+            return {
+              'username': row['username'],
+              'profile_pic': row['profile_pic'],
+              'course_code': 'Same course',
+            }.cast<String, dynamic>();
+          }).toList(),
+          ...otherCourseResults.map((row) {
+            return {
+              'username': row['username'],
+              'profile_pic': row['profile_pic'],
+              'course_code': 'Other course',
+            }.cast<String, dynamic>();
+          }).toList(),
+        ];
+      });
+
+      await conn.close();
+    } catch (e) {
+      print('Error loading suggested users: $e');
+    }
+  }
+
+  // Function to handle the follow logic
+  Future<void> _followUser() async {
+    try {
+      final conn = await MySqlConnection.connect(ConnectionSettings(
+        host: '127.0.0.1',
+        port: 3306,
+        user: 'root',
+        db: 'socialhub',
+      ));
+
+      // Insert the follow request into the database
+      await conn.query('''
+  INSERT INTO followers (user_id, follower_user_id, status)
+  VALUES (?, ?, 'pending')
+''', [widget.userId, widget.userId]);
+
+      setState(() {
+        isFollowing = true; // Update the button UI
+      });
+
+      await conn.close();
+
+      // Feedback to the user
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Follow request sent successfully.')),
+      );
+    } catch (e) {
+      print('Error following user: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error sending follow request.')),
+      );
+    }
+  }
+
+  Future<void> _toggleFollowUser(int targetUserId) async {
+    try {
+      final conn = await MySqlConnection.connect(connSettings);
+
+      // Check if the current user is already following the target user
+      var result = await conn.query(
+        '''SELECT * FROM followers WHERE user_id = ? AND follower_user_id = ?''',
+        [targetUserId, widget.userId],
+      );
+
+      if (result.isEmpty) {
+        // Follow the user if no existing relationship
+        await conn.query('''
+        INSERT INTO followers (user_id, follower_user_id, status)
+        VALUES (?, ?, 'pending')
+      ''', [targetUserId, widget.userId]);
+        setState(() {
+          isFollowing = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Follow request sent successfully.')),
+        );
+      } else {
+        // Unfollow the user if already following
+        await conn.query('''
+        DELETE FROM followers WHERE user_id = ? AND follower_user_id = ?
+      ''', [targetUserId, widget.userId]);
+        setState(() {
+          isFollowing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unfollowed the user.')),
+        );
+      }
+
+      await conn.close();
+    } catch (e) {
+      print('Error toggling follow status: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error processing follow request.')),
+      );
     }
   }
 
@@ -157,16 +297,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   // Profile Header Section
                   Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Color(0xFF00509E),
-                          Color.fromRGBO(78, 200, 244, 1)
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.only(
+                    decoration: BoxDecoration(
+                      color: Color.fromRGBO(78, 200, 244, 1),
+                      borderRadius: const BorderRadius.only(
                         bottomLeft: Radius.circular(25),
                         bottomRight: Radius.circular(25),
                       ),
@@ -181,7 +314,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           backgroundImage: profilePicBytes != null
                               ? MemoryImage(profilePicBytes!)
                               : const AssetImage(
-                                      'assets/images/default_avatar.png')
+                                      'lib/assets/images/default_avatar.png')
                                   as ImageProvider,
                         ),
                         const SizedBox(height: 15),
@@ -203,44 +336,38 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // Information Section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 8.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12.0),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 6.0,
-                            offset: Offset(0, 3),
+
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(0.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(
+                            color: Colors.grey,
+                            width: 1.0,
                           ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildProfileDetail(
-                              icon: Icons.email,
-                              title: 'Email',
-                              subtitle: _userDetails['email'] ?? 'N/A',
+                            ListTile(
+                              title: Text('Email'),
+                              subtitle: Text(_userDetails['email'] ?? 'N/A'),
                             ),
-                            const Divider(),
-                            _buildProfileDetail(
-                              icon: Icons.info,
-                              title: 'Bio',
+                            ListTile(
+                              title: Text('Bio'),
+                              subtitle: Text(
+                                  _userDetails['bio'] ?? 'No bio available'),
+                            ),
+                            ListTile(
+                              title: Text('Joined On'),
                               subtitle:
-                                  _userDetails['bio'] ?? 'No bio available',
-                            ),
-                            const Divider(),
-                            _buildProfileDetail(
-                              icon: Icons.calendar_today,
-                              title: 'Joined On',
-                              subtitle: _userDetails['created_at'] ?? 'Unknown',
+                                  Text(_userDetails['created_at'] ?? 'Unknown'),
                             ),
                           ],
                         ),
@@ -248,51 +375,161 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  // Edit Profile Button
+                  // Suggested Users Section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Suggested Users',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          itemCount: suggestedUsers.length,
+                          itemBuilder: (context, index) {
+                            var user = suggestedUsers[index];
+
+                            var userId =
+                                user['user_id'] != null ? user['user_id'] : -1;
+                            print('User ID: $userId');
+
+                            // Check if the userId is valid before using it
+                            return ListTile(
+                              // leading: CircleAvatar(
+                              //   radius: 30,
+                              //   backgroundImage: user['profile_pic'] != null
+                              //       ? MemoryImage(user['profile_pic'])
+                              //       : const AssetImage(
+                              //               'assets/images/default_avatar.png')
+                              //           as ImageProvider,
+                              // ),
+                              title: Text(user['username'] ?? 'Unknown User'),
+                              subtitle:
+                                  Text(user['course_code'] ?? 'No Course'),
+                              trailing: IconButton(
+                                icon: Icon(isFollowing
+                                    ? Icons.person_remove
+                                    : Icons.person_add),
+                                onPressed: () {
+                                  if (userId != -1) {
+                                    _toggleFollowUser(userId);
+                                  } else {
+                                    print('Invalid userId');
+                                    print('User details: $user');
+                                    print('Suggested Users: $suggestedUsers');
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        )
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
       bottomNavigationBar: SocialMediaBottomNavBar(),
     );
   }
-}
 
-Widget _buildProfileDetail({
-  required IconData icon,
-  required String title,
-  required String subtitle,
-}) {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(
-        icon,
-        size: 20.0,
-        color: Colors.grey[700],
-      ),
-      const SizedBox(width: 12.0),
-      Expanded(
-        child: Column(
+  Widget _buildProfileDetail({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 20.0,
+          color: Colors.black,
+        ),
+        const SizedBox(width: 10.0),
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 14.0,
-                fontWeight: FontWeight.bold,
-              ),
+              style:
+                  const TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4.0),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12.0,
-                color: Colors.grey,
+            Text(subtitle),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _convertBlobToString(dynamic blob) {
+    if (blob == null) return '';
+    if (blob is List<int>) {
+      return utf8.decode(blob);
+    } else if (blob is String) {
+      return blob;
+    }
+    return '';
+  }
+}
+
+class InfoCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const InfoCard({
+    Key? key,
+    required this.icon,
+    required this.label,
+    required this.value,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFF00509E), size: 28),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        color: Color.fromARGB(255, 255, 255, 255)),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
-    ],
-  );
+    );
+  }
 }
